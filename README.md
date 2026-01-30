@@ -42,9 +42,8 @@
 | API-007 | 提交故障反馈 | POST | /feedbacks | 用户上报设备异常 | #12 |
 | API-008 | 获取营收统计 | GET | /admin/revenue | 管理员查看运营数据 | #14 |
 | API-009 | 处理反馈记录 | PUT | /feedbacks/{feedbackId} | 管理员更新反馈状态 | #12 |
-| API-010 | 发放折扣券 | POST | /discounts | 创建优惠活动 | #15 |
-| API-011 | 获取滑板车位置 | GET | /scooters/{scooterId}/location | 查询指定车辆实时坐标 | #9 |
-| API-012 | 检查用户权限 | GET | /auth/check | 验证Token有效性及用户角色 | #3 |
+| API-010 | 获取滑板车位置 | GET | /scooters/{scooterId}/location | 查询指定车辆实时坐标 | #9 |
+| API-011 | 检查用户权限 | GET | /auth/check | 验证Token有效性及用户角色 | #3 |
 
 ### 3.2 接口明细说明
 
