@@ -1,129 +1,213 @@
-# 电动滑板车租赁系统对外接口规范
-本文档定义电动滑板车租赁系统的对外接口规范，适用于前端开发、后端实现、测试验证及课程演示。系统采用Client-Server架构，客户端基于UniApp框架（支持H5/小程序/APP多端编译），服务端提供RESTful HTTP API，数据持久化采用MySQL数据库。所有接口基础路径为`/api/v1/`，运行于本地开发环境。第三方服务（支付、地图）以模拟接口实现，路径前缀为`/mock/`。
+Electric Scooter Rental System External Interface Specification  
 
----
+This document defines the external interface specifications of the electric scooter rental system, applicable to frontend development, backend implementation, test verification, and course demonstration. The system adopts a Client-Server architecture: the client is built with the UniApp framework (supporting multi-platform compilation to H5, Mini Programs, and native apps); the server provides RESTful HTTP APIs; and data persistence uses a MySQL database. All interfaces have a base path of /api/v1/ and run in a local development environment. Third-party services (payment, maps) are implemented via mock interfaces, with paths prefixed by /mock/.  
 
-## 2 接口概述
+2 Interface Overview  
+2.1 System Architecture Background  
+The system consists of three components:  
+- Client: A multi-platform application compiled from UniApp, responsible for user interaction and UI rendering;  
+- Server: A monolithic backend application handling business logic, authentication/authorization, and data operations;  
+- Data Storage Layer: A MySQL database storing core business data including users, scooters, orders, and feedbacks.  
 
-### 2.1 系统架构背景
-系统由三部分构成：
-- 客户端：UniApp编译生成的多端应用，负责用户交互与界面渲染；
-- 服务端：单体后端应用，处理业务逻辑、认证授权及数据操作；
-- 数据存储层：MySQL数据库，存储用户、滑板车、订单、反馈等核心业务数据。
+The client communicates with the server via HTTP/HTTPS protocols; the server interacts with the database via JDBC/ORM drivers.  
 
-客户端与服务端通过HTTP/HTTPS协议通信，服务端与数据库通过JDBC/ORM驱动交互。
+2.2 Interface Type Classification  
+- Frontend–Backend Interfaces: RESTful APIs called by the client to the server—this constitutes the main content of this document;  
+- Internal Module Interfaces: Inter-module calls within the server (e.g., order service invoking scooter service), representing code-level contracts not exposed externally;  
+- Third-Party System Interfaces: Integration points with external systems; in this project, these are simulated via /mock/ paths while preserving structural compatibility.  
 
-### 2.2 接口类型划分
-- 前端-后端接口：客户端调用服务端的RESTful API，为本文档主体内容；
-- 内部模块接口：服务端内部业务模块间调用（如订单服务调用滑板车服务），属代码级契约，不对外暴露；
-- 第三方系统接口：与外部系统集成点，本项目以`/mock/`路径模拟实现，保留结构兼容性。
+2.3 Design Principles  
+- Resource paths use plural nouns (e.g., /scooters);  
+- Operation semantics are expressed via HTTP methods (GET for queries, POST for creation, PUT for updates, DELETE for deletion);  
+- All sensitive interfaces require an Authorization header (Bearer Token);  
+- Responses are uniformly in JSON format: success responses include a data field, error responses include an error field;  
+- Interface paths include a version number (/api/v1/) to support future iterations;  
+- Permission checks distinguish between user and admin roles.  
 
-### 2.3 设计原则
-- 资源路径使用名词复数形式（如`/scooters`）；
-- 操作语义由HTTP方法表达（GET查询、POST创建、PUT更新、DELETE删除）；
-- 所有敏感接口需携带Authorization头（Bearer Token）；
-- 响应体统一为JSON格式，成功含`data`字段，失败含`error`字段；
-- 接口路径包含版本号（`/api/v1/`），支持后续迭代；
-- 权限校验区分`user`与`admin`角色。
+3 Detailed Interface Specifications  
+3.1 Core Interface List  
+No.   Interface Name   Method   Endpoint   Purpose   Requirement ID
+API-001   Get Available Scooters List   GET   /scooters   Query rentable scooters and location info   #4, #5
 
----
+API-002   User Registration   POST   /users   Create a new user account   #1
 
-## 3 接口详细说明
+API-003   User Login   POST   /auth/login   Validate credentials and return authentication token   #2
 
-### 3.1 核心接口清单
-| 编号 | 接口名称 | 请求方法 | 接口地址 | 用途说明 | 对应需求ID |
-|------|----------|----------|----------|----------|------------|
-| API-001 | 获取可用滑板车列表 | GET | /scooters | 查询可租用滑板车及位置信息 | #4, #5 |
-| API-002 | 用户注册 | POST | /users | 创建新用户账户 | #1 |
-| API-003 | 用户登录 | POST | /auth/login | 验证凭证并返回认证令牌 | #2 |
-| API-004 | 创建订单 | POST | /bookings | 提交滑板车预订请求 | #5, #6 |
-| API-005 | 查询个人订单历史 | GET | /users/{userId}/bookings | 获取用户历史订单列表 | #7 |
-| API-006 | 取消订单 | DELETE | /bookings/{bookingId} | 终止未开始的订单 | #8 |
-| API-007 | 提交故障反馈 | POST | /feedbacks | 用户上报设备异常 | #12 |
-| API-008 | 获取营收统计 | GET | /admin/revenue | 管理员查看运营数据 | #14 |
-| API-009 | 处理反馈记录 | PUT | /feedbacks/{feedbackId} | 管理员更新反馈状态 | #12 |
-| API-010 | 获取滑板车位置 | GET | /scooters/{scooterId}/location | 查询指定车辆实时坐标 | #9 |
-| API-011 | 检查用户权限 | GET | /auth/check | 验证Token有效性及用户角色 | #3 |
+API-004   Create Booking   POST   /bookings   Submit scooter reservation request   #5, #6
 
-### 3.2 接口明细说明
+API-005   Query Personal Booking History   GET   /users/{userId}/bookings   Retrieve user’s historical booking list   #7
 
-#### API-001 获取可用滑板车列表
-- 请求参数：status（字符串，可选）、page（整数，可选）、limit（整数，可选）
-- 响应内容：滑板车列表（含ID、坐标、电量、状态）、分页信息
-- 状态码：200（成功）、400（参数错误）、500（服务器错误）
+API-006   Cancel Booking   DELETE   /bookings/{bookingId}   Terminate unstarted bookings   #8
 
-#### API-002 用户注册
-- 请求参数：email（字符串，必填）、password（字符串，必填）、name（字符串，必填）
-- 响应内容：新用户ID、邮箱、姓名
-- 状态码：201（创建成功）、400（字段缺失）、409（邮箱已存在）
+API-007   Submit Fault Feedback   POST   /feedbacks   User reports device anomaly   #12
 
-#### API-003 用户登录
-- 请求参数：email（字符串，必填）、password（字符串，必填）
-- 响应内容：认证令牌、用户ID、角色
-- 状态码：200（成功）、401（凭证无效）
+API-008   Get Revenue Statistics   GET   /admin/revenue   Admin views operational data   #14
 
-#### API-004 创建订单
-- 请求参数：scooter_id（字符串，必填）、user_id（字符串，必填）
-- 响应内容：订单ID、关联滑板车ID、用户ID、状态、创建时间
-- 状态码：201（成功）、401（未认证）、409（车辆已被预订）
+API-009   Process Feedback Record   PUT   /feedbacks/{feedbackId}   Admin updates feedback status   #12
 
-#### API-005 查询个人订单历史
-- 请求参数：无（路径含用户ID）
-- 响应内容：订单列表（含ID、滑板车ID、状态、起止时间）
-- 状态码：200（成功）、401（未认证）、404（用户不存在）
+API-010   Get Scooter Location   GET   /scooters/{scooterId}/location   Query real-time coordinates of a specific scooter   #9
 
-#### API-006 取消订单
-- 请求参数：无（路径含订单ID）
-- 响应内容：订单ID、更新后状态
-- 状态码：200（成功）、403（无操作权限）、404（订单不存在）
+API-011   Check User Permissions   GET   /auth/check   Verify token validity and user role   #3
 
-#### API-007 提交故障反馈
-- 请求参数：scooter_id（字符串，必填）、description（字符串，必填）、location（字符串，可选）
-- 响应内容：反馈ID、滑板车ID、状态、创建时间
-- 状态码：201（成功）、401（未认证）
+3.2 Detailed Interface Descriptions  
 
-#### API-008 获取营收统计
-- 请求参数：start_date（日期，可选）、end_date（日期，可选）
-- 响应内容：总营收金额、订单总数、平均订单金额
-- 状态码：200（成功）、403（权限不足）
+API-001 Get Available Scooters List  
+Request Parameters:  
+- status (string, optional)  
+- page (integer, optional)  
+- limit (integer, optional)  
 
-#### API-009 处理反馈记录
-- 请求参数：status（字符串，必填）、note（字符串，可选）
-- 响应内容：反馈ID、更新后状态、处理备注、更新时间
-- 状态码：200（成功）、403（权限不足）、404（记录不存在）
+Response Content:  
+Scooter list (including ID, coordinates, battery level, status), pagination info  
 
-#### API-010 获取滑板车位置
-- 请求参数：无（路径含滑板车ID）
-- 响应内容：纬度、经度、时间戳
-- 状态码：200（成功）、404（车辆不存在）
+Status Codes:  
+- 200 (success)  
+- 400 (parameter error)  
+- 500 (server error)  
 
-#### API-011 检查用户权限
-- 请求参数：无
-- 响应内容：用户ID、角色、Token过期时间
-- 状态码：200（有效）、401（无效或过期）
+API-002 User Registration  
+Request Parameters:  
+- email (string, required)  
+- password (string, required)  
+- name (string, required)  
 
----
+Response Content:  
+New user ID, email, name  
 
-## 4 接口测试要求
-测试需覆盖功能正确性、异常处理、响应性能及多端兼容性。
-- 功能测试：验证各接口按验收标准返回预期结果；
-- 异常测试：测试参数缺失、越权访问、资源冲突等场景；
-- 性能要求：本地环境P95响应时间不超过800毫秒；
-- 兼容性：确保UniApp编译至H5、微信小程序、Android端均可正常调用；
-- 验收标准：所有Must-have接口需有自动化测试用例覆盖，Demo时可现场验证。
+Status Codes:  
+- 201 (created successfully)  
+- 400 (missing fields)  
+- 409 (email already exists)  
 
----
+API-003 User Login  
+Request Parameters:  
+- email (string, required)  
+- password (string, required)  
 
-## 5 附录
+Response Content:  
+Authentication token, user ID, role  
 
-### 5.1 HTTP状态码说明
-| 状态码 | 含义 | 使用场景 |
-|--------|------|----------|
-| 200 | 请求成功 | 资源查询、状态更新成功 |
-| 201 | 资源创建成功 | 用户注册、订单创建等 |
-| 400 | 请求参数错误 | 字段缺失、格式非法 |
-| 401 | 未授权 | Token缺失或无效 |
-| 403 | 禁止访问 | 权限不足（如普通用户访问管理员接口） |
-| 404 | 资源未找到 | 访问不存在的订单或车辆 |
-| 409 | 冲突 | 同一资源被重复操作（如重复预订） |
-| 500 | 服务器内部错误 | 数据库异常、服务崩溃 |
+Status Codes:  
+- 200 (success)  
+- 401 (invalid credentials)  
+
+API-004 Create Booking  
+Request Parameters:  
+- scooter_id (string, required)  
+- user_id (string, required)  
+
+Response Content:  
+Booking ID, associated scooter ID, user ID, status, creation time  
+
+Status Codes:  
+- 201 (success)  
+- 401 (unauthorized)  
+- 409 (scooter already booked)  
+
+API-005 Query Personal Booking History  
+Request Parameters: none (user ID embedded in path)  
+
+Response Content:  
+Booking list (including ID, scooter ID, status, start/end times)  
+
+Status Codes:  
+- 200 (success)  
+- 401 (unauthorized)  
+- 404 (user not found)  
+
+API-006 Cancel Booking  
+Request Parameters: none (booking ID embedded in path)  
+
+Response Content:  
+Booking ID, updated status  
+
+Status Codes:  
+- 200 (success)  
+- 403 (insufficient permissions)  
+- 404 (booking not found)  
+
+API-007 Submit Fault Feedback  
+Request Parameters:  
+- scooter_id (string, required)  
+- description (string, required)  
+- location (string, optional)  
+
+Response Content:  
+Feedback ID, scooter ID, status, creation time  
+
+Status Codes:  
+- 201 (success)  
+- 401 (unauthorized)  
+
+API-008 Get Revenue Statistics  
+Request Parameters:  
+- start_date (date, optional)  
+- end_date (date, optional)  
+
+Response Content:  
+Total revenue amount, total order count, average order amount  
+
+Status Codes:  
+- 200 (success)  
+- 403 (insufficient permissions)  
+
+API-009 Process Feedback Record  
+Request Parameters:  
+- status (string, required)  
+- note (string, optional)  
+
+Response Content:  
+Feedback ID, updated status, processing note, update time  
+
+Status Codes:  
+- 200 (success)  
+- 403 (insufficient permissions)  
+- 404 (record not found)  
+
+API-010 Get Scooter Location  
+Request Parameters: none (scooter ID embedded in path)  
+
+Response Content:  
+Latitude, longitude, timestamp  
+
+Status Codes:  
+- 200 (success)  
+- 404 (scooter not found)  
+
+API-011 Check User Permissions  
+Request Parameters: none  
+
+Response Content:  
+User ID, role, token expiration time  
+
+Status Codes:  
+- 200 (valid)  
+- 401 (invalid or expired)  
+
+4 Interface Testing Requirements  
+Testing must cover functional correctness, exception handling, response performance, and multi-platform compatibility.  
+
+Functional Testing: Verify each interface returns expected results per acceptance criteria;  
+Exception Testing: Test scenarios such as missing parameters, unauthorized access, resource conflicts, etc.;  
+Performance Requirement: P95 response time ≤ 800 ms in local environment;  
+Compatibility: Ensure UniApp-compiled outputs for H5, WeChat Mini Program, and Android all invoke interfaces correctly;  
+Acceptance Criteria: All Must-have interfaces must be covered by automated test cases; demo can be verified on-site.  
+
+5 Appendices  
+5.1 HTTP Status Code Reference  
+Status Code   Meaning   Usage Scenario
+200   Request succeeded   Resource query, status update successful
+
+201   Resource created successfully   User registration, booking creation, etc.
+
+400   Bad request (parameter error)   Missing fields, invalid format
+
+401   Unauthorized   Missing or invalid Token
+
+403   Forbidden   Insufficient permissions (e.g., regular user accessing admin interface)
+
+404   Resource not found   Accessing non-existent order or scooter
+
+409   Conflict   Duplicate operation on same resource (e.g., duplicate booking)
+
+500   Internal server error   Database exception, service crash
